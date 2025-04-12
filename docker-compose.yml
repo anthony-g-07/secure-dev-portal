@@ -1,18 +1,14 @@
-version: '3.9'
-
 services:
-  postgres:
-    image: postgres:14
-    container_name: secureportal_db
-    restart: always
+  mysql:
+    image: mysql:8                        # ✅ Use official MySQL 8 image
+    container_name: secureportal_db      # ✅ Custom container name
+    restart: always                       # ✅ Auto-restart if container fails
     ports:
-      - "5432:5432"
+      - "3307:3306"                       # ✅ Expose MySQL default port
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT}        # ✅ Root password (you may not need it for dev)
+      MYSQL_DATABASE: ${DB_NAME}    # ✅ Creates DB on first init
+      MYSQL_USER: ${DB_USER}              # ✅ Creates dev user
+      MYSQL_PASSWORD: ${DB_PASS}       # ✅ Sets password for dev user
     volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./db-init:/docker-entrypoint-initdb.d
-    env_file:
-      - ./db.env
-
-
-volumes:
-  pgdata:
+      - ./db-init:/docker-entrypoint-initdb.d  # ✅ Run init.sql on container creation
