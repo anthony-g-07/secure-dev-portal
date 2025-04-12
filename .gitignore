@@ -2,22 +2,38 @@
 node_modules/
 npm-debug.log*
 
-# Env variables
+# Environment variables
 *.env
 db.env
 
-# OS files
+# OS-generated files
 .DS_Store
 Thumbs.db
 
-# Docker volumes
+# Docker volumes (Postgres or MySQL)
 pgdata/
+mysql-data/
 *.pid
 
-# IDE/editor
+# IDE/editor settings
 .vscode/
 .idea/
 
-# Build files
+# Build files (Vite)
 client/dist/
 
+# Logs
+*.log
+
+# Vite/SSR builds
+client/dist-ssr/
+
+# Local env overrides
+*.local
+
+# Optional: other editors/tools
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
