@@ -1,0 +1,23 @@
+# Node.js
+node_modules/
+npm-debug.log*
+
+# Env variables
+*.env
+db.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+pgdata/
+*.pid
+
+# IDE/editor
+.vscode/
+.idea/
+
+# Build files
+client/dist/
+
