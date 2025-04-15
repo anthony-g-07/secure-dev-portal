@@ -1,16 +1,19 @@
 # Node.js
 node_modules/
+client/node_modules/
+server/node_modules/
 npm-debug.log*
 
 # Environment variables
 *.env
+*.local
 db.env
 
 # OS-generated files
 .DS_Store
 Thumbs.db
 
-# Docker volumes (Postgres or MySQL)
+# Docker volumes
 pgdata/
 mysql-data/
 *.pid
@@ -21,17 +24,18 @@ mysql-data/
 
 # Build files (Vite)
 client/dist/
+client/dist-ssr/
 
 # Logs
 *.log
 
-# Vite/SSR builds
-client/dist-ssr/
+# SQLite (if used)
+*.sqlite
 
-# Local env overrides
-*.local
+# Test coverage
+coverage/
 
-# Optional: other editors/tools
+# Optional editors/tools
 *.suo
 *.ntvs*
 *.njsproj

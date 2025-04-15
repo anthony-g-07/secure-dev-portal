@@ -1,56 +1,109 @@
+// server/routes/auth.js
 const express = require("express");
-const { OAuth2Client } = require("google-auth-library");
-const db = require("../models/db");
+const passport = require("passport");
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const jwt = require("jsonwebtoken");
+const db = require("../models/db");
+const ROLES = require("../constants/roles");
 
 const router = express.Router();
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// POST /api/auth/google
-router.post("/google", async (req, res) => {
-  console.log("🔐 Received Google login request");
-  console.log("📦 Token payload:", req.body);
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: "/api/auth/google/callback",
+    },
+    async (accessToken, refreshToken, profile, done) => {
+      try {
+        const email = profile.emails?.[0]?.value;
+        const name = profile.displayName;
 
-  const { id_token } = req.body;
+        if (!email) {
+          return done(new Error("No email found in Google profile"), null);
+        }
 
-  try {
-    const ticket = await client.verifyIdToken({
-      idToken: id_token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
+        console.log("🔍 Checking for user with email:", email);
 
-    const payload = ticket.getPayload();
-    const { email, name } = payload;
+        const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
+          email,
+        ]);
+        let user = rows[0];
 
-    // 🔍 Log payload (optional)
-    console.log('✅ Verified payload:', payload);
+        if (!user) {
+          const [result] = await db.query(
+            "INSERT INTO users (email, name, role) VALUES (?, ?, ?)",
+            [email, name, ROLES.VIEWER]
+          );
+          user = { id: result.insertId, email, name, role: ROLES.VIEWER };
+        }
 
-    // Check if user exists
-    const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
-      email,
-    ]);
-
-    let user = rows[0];
-    if (!user) {
-      const [result] = await db.query(
-        "INSERT INTO users (email, name, role) VALUES (?, ?, ?)",
-        [email, name, "viewer"]
-      );
-      user = { id: result.insertId, email, name, role: "viewer" };
+        done(null, user);
+      } catch (err) {
+        done(err);
+      }
     }
+  )
+);
 
-    // Issue JWT
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((user, done) => done(null, user));
+
+// Start Google login
+router.get(
+  "/google",
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+  })
+);
+
+// Callback route
+router.get(
+  "/google/callback",
+  passport.authenticate("google", {
+    failureRedirect: "/login",
+  }),
+  async (req, res) => {
+    const user = req.user;
+
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user.id, email: user.email, role: user.role, name: user.name },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
 
-    res.json({ token, user });
-  } catch (err) {
-    console.error("Google login error:", err);
-    res.status(401).json({ error: "Invalid Google token" });
+    await db.query(
+      "INSERT INTO audit_logs (user_id, action, resource, metadata) VALUES (?, ?, ?, ?)",
+      [
+        user.id,
+        "login",
+        null,
+        JSON.stringify({
+          ip: req.ip,
+          ua: req.headers["user-agent"],
+        }),
+      ]
+    );
+
+    // Store token in HttpOnly cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // set to true with HTTPS
+      sameSite: "Lax",
+      maxAge: 1000 * 60 * 60, // 1 hour
+    });
+
+    // Redirect back to React
+    const redirectUrl = process.env.CLIENT_REDIRECT_URL || "http://localhost:5173/dashboard";
+    res.redirect(redirectUrl);
   }
+);
+
+// Logout route
+router.post("/logout", (req, res) => {
+  res.clearCookie("token");
+  req.logout(() => res.sendStatus(200));
 });
 
 module.exports = router;
