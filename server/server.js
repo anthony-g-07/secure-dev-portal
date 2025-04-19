@@ -13,30 +13,32 @@ const verifyToken = require("./middleware/verifyToken");
 
 const app = express();
 const isProduction = process.env.NODE_ENV === "production";
+const isTest = process.env.NODE_ENV === "test";
 
-const csrfProtection = csrf({
-  cookie: {
-    httpOnly: true,
-    sameSite: isProduction ? "strict" : "lax",
-    secure: isProduction,
-  },
-});
+// 🛡️ Optional CSRF only if NOT in test
+const maybeProtect = isTest
+  ? (req, res, next) => next()
+  : csrf({
+      cookie: {
+        httpOnly: true,
+        sameSite: isProduction ? "strict" : "lax",
+        secure: isProduction,
+      },
+    });
+    
+// 🔐 Security
+app.use(helmet({ contentSecurityPolicy: false }));
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: false, // optional: disable CSP in dev for easier testing
-}));
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isProduction ? 100 : 200, // allow more requests during dev
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: "⚠️ Too many requests from this IP, please try again later.",
-});
-
-// Apply rate limiting globally (or only to specific routes if preferred)
-app.use(limiter);
+// 🔄 Rate limiting (relaxed in dev)
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: isProduction ? 100 : 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: "⚠️ Too many requests from this IP, please try again later.",
+  })
+);
 
 app.use(express.json());
 app.use(cookieParser());
@@ -65,30 +67,36 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-app.get("/", (req, res) => {
-  res.send("Secure Dev Portal Backend Running");
+// 🧪 CSRF route (used by frontend only)
+app.get("/api/csrf-token", maybeProtect, (req, res) => {
+  res.json({ csrfToken: req.csrfToken?.() || null });
 });
-
-app.get("/api/csrf-token", csrfProtection, (req, res) => {
-  res.json({ csrfToken: req.csrfToken() });
-});
-
 
 const usersRouter = require("./routes/users");
 const authRouter = require("./routes/auth");
 const configsRouter = require("./routes/configs");
 const logsRouter = require("./routes/logs");
 
+app.get("/", (req, res) => {
+  res.send("Secure Dev Portal Backend Running");
+});
+
 app.get("/api/user", verifyToken, (req, res) => {
   res.json({ user: req.user });
 });
 
-app.use("/api/users", csrfProtection, usersRouter); // Mount test route
+// 🔐 Apply maybeProtect (CSRF bypass in test)
+app.use("/api/users", maybeProtect, usersRouter);
+app.use("/api/configs", maybeProtect, configsRouter);
 app.use("/api/auth", authRouter);
-app.use("/api/configs", csrfProtection, configsRouter); // ✅ Protected!
 app.use("/api/logs", logsRouter);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, async () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

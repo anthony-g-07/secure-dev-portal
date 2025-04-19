@@ -23,6 +23,7 @@ router.get("/", verifyToken, async (req, res) => {
 });
 
 router.put("/:id/role", verifyToken, async (req, res) => {
+  console.log("🔐 req.user =", req.user);
   const { id } = req.params;
   const { newRole } = req.body;
 

@@ -8,8 +8,11 @@ const verifyToken = (req, res, next) => {
     return res.status(401).json({ message: "No token provided" });
   }
 
+  console.log("TOKEN FOUND:", token);
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("🧪 Decoded token:", decoded);
     req.user = decoded;
     next();
   } catch (err) {
